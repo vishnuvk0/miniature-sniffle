@@ -36,7 +36,7 @@ export function DeleteAccountDialog({ account, onDelete }: DeleteAccountDialogPr
         <AlertDialogHeader>
           <AlertDialogTitle>Delete Account</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to delete your {account.name} account? This action cannot be undone
+            Are you sure you want to delete this account? This action cannot be undone
             and will permanently delete all history associated with this account.
           </AlertDialogDescription>
         </AlertDialogHeader>

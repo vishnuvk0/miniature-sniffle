@@ -18,12 +18,17 @@ export async function GET() {
       include: {
         history: {
           orderBy: {
-            date: 'asc',
+            date: 'desc',
           },
         },
+        // spending: {
+        //   orderBy: {
+        //     date: 'desc'
+        //   }
+        // }
       },
       orderBy: {
-        createdAt: 'desc',
+        updatedAt: 'desc',
       },
     });
     return NextResponse.json(accounts);
@@ -35,6 +40,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
+  console.log("SESSION IN POST /api/accounts:", JSON.stringify(session, null, 2));
 
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

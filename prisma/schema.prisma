@@ -19,6 +19,7 @@ model LoyaltyAccount {
   balance   Float
   date      DateTime
   history   HistoryEntry[]
+  spending  SpendingTransaction[] @relation("SpendingTransactions")
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 
@@ -44,6 +45,22 @@ model HistoryEntry {
   balance   Float
   reason    String?
   createdAt DateTime @default(now())
+
+  @@index([loyaltyAccountId])
+}
+
+model SpendingTransaction {
+  id        String    @id @default(cuid())
+  loyaltyAccountId String
+  account   LoyaltyAccount @relation("SpendingTransactions", fields: [loyaltyAccountId], references: [id], onDelete: Cascade)
+  date      DateTime  @default(now())
+  pointsUsed Int
+  method    String // e.g., "Transfer to Partner", "Spent on Portal", "Cash Out"
+  partnerName String?
+  cpp       Float?    // Cents Per Point
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@index([loyaltyAccountId])
 }

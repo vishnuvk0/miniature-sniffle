@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
@@ -69,6 +69,27 @@ export default function HomePage() {
       fetchAccounts();
     }
   }, [session, status, router]);
+
+  const totalLifetimeEarned = useMemo(() => {
+    return accounts.reduce((total, account) => {
+      const sortedHistory = (account.history || []).slice().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      if (sortedHistory.length === 0) return total;
+      
+      let earned = sortedHistory[0].balance;
+      for (let i = 1; i < sortedHistory.length; i++) {
+        const currentBalance = sortedHistory[i].balance;
+        const previousBalance = sortedHistory[i-1].balance;
+        if (currentBalance > previousBalance) {
+          earned += currentBalance - previousBalance;
+        }
+      }
+      return total + earned;
+    }, 0);
+  }, [accounts]);
+
+  const currentTotalBalance = useMemo(() => {
+    return accounts.reduce((total, account) => total + account.balance, 0);
+  }, [accounts]);
 
   // Handler to add a new account
   const handleAddAccount = async (newAccountData: NewAccountData) => {
@@ -224,6 +245,12 @@ export default function HomePage() {
             </h1>
             <p className="text-sm text-muted-foreground">Dive in to your award goals.</p>
           </div>
+          <div className="mt-4">
+            <h2 className="text-2xl font-bold text-green-600">
+              {totalLifetimeEarned.toLocaleString()}
+            </h2>
+            <p className="text-sm text-muted-foreground">Lifetime Points Earned</p>
+          </div>
         </div>
         <Button 
           variant="outline" 
@@ -247,7 +274,11 @@ export default function HomePage() {
         </section>
 
         <section id="overview-chart-section" className="mb-12">
-          <h2 className="text-2xl font-semibold tracking-tight text-left mb-4">Overall Progress</h2>
+          <div className="mb-4">
+            <h2 className="text-2xl font-semibold tracking-tight text-left">Overall Progress</h2>
+            <p className="text-3xl font-bold">{currentTotalBalance.toLocaleString()}</p>
+            <p className="text-sm text-muted-foreground">Current Total Balance</p>
+          </div>
           <Card className="h-[350px] p-4">
             <DynamicMainProgressChart accounts={accounts} />
           </Card>

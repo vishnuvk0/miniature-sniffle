@@ -1,10 +1,22 @@
-import { LoyaltyAccount, HistoryEntry } from '@prisma/client';
+import { HistoryEntry, SpendingTransaction } from '@prisma/client';
 
-export type { HistoryEntry };
+export type { HistoryEntry, SpendingTransaction };
 
-// This is the type for our application's loyalty account, which includes its history
-export type Account = LoyaltyAccount & {
+export type Account = {
+  id: string;
+  name: string;
+  balance: number;
+  date: Date;
+  category: string;
+  userId: string;
   history: HistoryEntry[];
+  spending: SpendingTransaction[];
+  card?: string | null;
+  cardOpenDate?: Date | null;
+  annualFee?: number | null;
+  signupBonus?: number | null;
+  createdAt: Date;
+  updatedAt: Date;
 };
 
 export interface NewAccountData {
