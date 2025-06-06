@@ -1,24 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Points & Miles Tracker
+
+This is a Next.js application designed to help you track your loyalty points and miles across various programs. You can add accounts, track your balances over time, and see a history of your point accruals and redemptions.
+
+## Features
+
+-   **Add and Manage Accounts:** Easily add new loyalty accounts with a starting balance.
+-   **Track Balance History:** Each account maintains a history of balance changes.
+-   **Record Redemption Reasons:** When a balance decreases, you can record a reason for the change.
+-   **Interactive Dashboard:** View all your accounts and their balances in a clean, interactive table.
+-   **Detailed Account View:** Drill down into a specific account to see its balance history.
+-   **Data Visualization:** (Future) Charts to visualize your points progression over time.
+
+## Tech Stack
+
+-   **Framework:** [Next.js](https://nextjs.org/)
+-   **UI:** [React](https://react.dev/) & [TypeScript](https://www.typescriptlang.org/)
+-   **Styling:** [Tailwind CSS](https://tailwindcss.com/) with [shadcn/ui](https://ui.shadcn.com/) components
+-   **ORM:** [Prisma](https://www.prisma.io/)
+-   **Database:** [PostgreSQL](https://www.postgresql.org/)
 
 ## Getting Started
 
-First, run the development server:
+Follow these instructions to get the project up and running on your local machine.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+### Prerequisites
+
+-   [Node.js](https://nodejs.org/en) (v18 or later recommended)
+-   [pnpm](https://pnpm.io/installation) (or npm/yarn)
+-   [PostgreSQL](https://www.postgresql.org/download/) installed and running.
+
+### Installation & Setup
+
+1.  **Clone the repository:**
+    ```bash
+    git clone <repository-url>
+    cd award-tracker
+    ```
+
+2.  **Install dependencies:**
+    ```bash
+    pnpm install
+    ```
+
+3.  **Set up the database:**
+    -   Make sure your PostgreSQL server is running.
+    -   Create a new database for this project.
+    -   Create a `.env` file in the root of the project and add your database connection string:
+
+        ```env
+        DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DATABASE_NAME"
+        ```
+        Replace `USER`, `PASSWORD`, `HOST`, `PORT`, and `DATABASE_NAME` with your actual database credentials.
+
+4.  **Run database migrations:**
+    This command will sync your database schema with the Prisma schema.
+    ```bash
+    npx prisma db push
+    ```
+
+5.  **Run the development server:**
+    ```bash
+    pnpm run dev
+    ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
 ## Learn More
 

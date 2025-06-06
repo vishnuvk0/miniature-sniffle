@@ -1,0 +1,27 @@
+[DEBUG] API Key: sk_4cc0baa...
+[DEBUG] Voice ID: 21m00Tcm4TlvDq8ikWAM
+[DEBUG] Model ID: eleven_monolingual_v1
+[DEBUG] Output Format: mp3_44100_128
+[DEBUG] Chunk Size: 5000
+[DEBUG] Optimize Streaming Latency: 1
+[DEBUG] Stability: 0.5
+[DEBUG] Similarity Boost: 0.75
+[DEBUG] Style: 0.0
+[DEBUG] Speaker Boost: true
+[DEBUG] Seed: 
+[DEBUG] Previous Text: ...
+[DEBUG] Next Text: ...
+[DEBUG] Processing chunk 1 (4 chars)
+[DEBUG] Request body:
+{
+    "text": "test",
+    "model_id": "eleven_monolingual_v1",
+    "voice_settings": {
+        "stability": 0.5,
+        "similarity_boost": 0.75,
+        "style": 0.0,
+        "use_speaker_boost": true
+    },
+    "output_format": "mp3_44100_128"
+}
+[DEBUG] Processed 1 chunks, 4 total characters

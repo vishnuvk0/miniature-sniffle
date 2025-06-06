@@ -1,11 +1,19 @@
-export interface NewAccountData {
-  accountName: string;
-  balance: number;
-  ownerName: string;
-  date: string; // ISO string format e.g., "YYYY-MM-DD"
-}
+import { LoyaltyAccount, HistoryEntry } from '@prisma/client';
 
-export interface Account extends NewAccountData {
-  id: string; // Unique identifier for each account
-  history: Array<{ date: string; balance: number }>; // To store balance changes over time
-} 
+export type { HistoryEntry };
+
+// This is the type for our application's loyalty account, which includes its history
+export type Account = LoyaltyAccount & {
+  history: HistoryEntry[];
+};
+
+export interface NewAccountData {
+  name: string;
+  balance: number;
+  date: string;
+  category: string;
+  card?: string;
+  cardOpenDate?: string;
+  annualFee?: number;
+  signupBonus?: number;
+}

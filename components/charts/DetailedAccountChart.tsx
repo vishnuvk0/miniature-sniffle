@@ -23,6 +23,8 @@ interface DetailedAccountChartProps {
 }
 
 export default function DetailedAccountChart({ data }: DetailedAccountChartProps) {
+  console.log("[DetailedAccountChart] Data received:", data);
+
   if (!data || data.length === 0) {
     return (
       <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
@@ -73,12 +75,12 @@ export default function DetailedAccountChart({ data }: DetailedAccountChartProps
         />
         <Legend verticalAlign="top" height={36} />
         <Line
-          type="monotone"
+          type="linear" // Kept linear for consistency in testing
           dataKey="balance"
           name="Account Balance"
-          stroke="hsl(var(--primary))"
+          stroke="green" // Use a hardcoded, obvious color for testing
           strokeWidth={2}
-          dot={data.length < 30 || data.length === 1} // Show dots if not too many points or only one
+          dot={true} // Always show dots for testing
           isAnimationActive={true}
           animationDuration={1000}
           animationEasing="ease-in-out"
