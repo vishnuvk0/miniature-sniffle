@@ -32,17 +32,17 @@ export function Autocomplete({ value, setValue, options, placeholder = "Select a
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" side="bottom">
         <Command>
-          <CommandInput placeholder="Search options..." />
-          <CommandEmpty>No option found.</CommandEmpty>
+          <CommandInput placeholder="Search..." />
+          <CommandEmpty>No results found.</CommandEmpty>
           <CommandGroup>
             {options.map((option) => (
               <CommandItem
                 key={option}
                 value={option}
                 onSelect={(currentValue) => {
-                  setValue(currentValue === value ? "" : currentValue);
+                  setValue(currentValue.toLowerCase() === value.toLowerCase() ? "" : currentValue);
                   setOpen(false);
                 }}
               >

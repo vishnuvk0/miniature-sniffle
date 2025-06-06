@@ -16,10 +16,13 @@ datasource db {
 model LoyaltyAccount {
   id        String         @id @default(cuid())
   name      String
+  customName String?
+  accountIdNumber String?
+  notes     String?
   balance   Float
   date      DateTime
   history   HistoryEntry[]
-  spending  SpendingTransaction[] @relation("SpendingTransactions")
+  spending  SpendingTransaction[] @relation("AccountSpending")
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 
@@ -38,29 +41,33 @@ model LoyaltyAccount {
 }
 
 model HistoryEntry {
-  id        String   @id @default(cuid())
+  id               String                @id @default(cuid())
   loyaltyAccountId String
-  account   LoyaltyAccount  @relation(fields: [loyaltyAccountId], references: [id], onDelete: Cascade)
-  date      DateTime
-  balance   Float
-  reason    String?
-  createdAt DateTime @default(now())
+  account          LoyaltyAccount        @relation(fields: [loyaltyAccountId], references: [id], onDelete: Cascade)
+  date             DateTime
+  balance          Float
+  reason           String?
+  createdAt        DateTime              @default(now())
+  transactionId    String?
+  transaction      SpendingTransaction?  @relation(fields: [transactionId], references: [id], onDelete: SetNull)
 
   @@index([loyaltyAccountId])
+  @@index([transactionId])
 }
 
 model SpendingTransaction {
-  id        String    @id @default(cuid())
+  id               String         @id @default(cuid())
   loyaltyAccountId String
-  account   LoyaltyAccount @relation("SpendingTransactions", fields: [loyaltyAccountId], references: [id], onDelete: Cascade)
-  date      DateTime  @default(now())
-  pointsUsed Int
-  method    String // e.g., "Transfer to Partner", "Spent on Portal", "Cash Out"
-  partnerName String?
-  cpp       Float?    // Cents Per Point
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  account          LoyaltyAccount @relation("AccountSpending", fields: [loyaltyAccountId], references: [id], onDelete: Cascade)
+  date             DateTime       @default(now())
+  pointsUsed       Int
+  method           String // e.g., "Transfer to Partner", "Spent on Portal", "Cash Out"
+  partnerName      String?
+  cpp              Float? // Cents Per Point
+  transferBonus    Int?
+  historyEntries   HistoryEntry[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 
   @@index([loyaltyAccountId])
 }

@@ -1,78 +1,32 @@
 import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { prisma } from '@/lib/prisma';
+import { createSpendLogic, InsufficientBalanceError } from '@/lib/spend-logic';
 
-export async function POST(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { id: sendingAccountId } = params;
+  const body = await req.json();
+
+  if (!body.pointsUsed || !body.method || !body.date) {
+    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+  }
+
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return new NextResponse('Unauthorized', { status: 401 });
-    }
-
-    const { id: loyaltyAccountId } = params;
-    const body = await request.json();
-    const { pointsUsed, method, partnerName, cpp } = body;
-
-    // Validate input
-    if (!pointsUsed || !method) {
-        return new NextResponse('Missing required fields', { status: 400 });
-    }
-    
-    const account = await prisma.loyaltyAccount.findFirst({
-        where: { id: loyaltyAccountId, userId: session.user.id }
+    const transactionResult = await prisma.$transaction(async (tx) => {
+      return createSpendLogic(tx, sendingAccountId, session.user.id, body);
     });
-
-    if (!account) {
-        return new NextResponse('Account not found or access denied', { status: 404 });
+    return NextResponse.json(transactionResult, { status: 200 });
+  } catch (error: any) {
+    if (error instanceof InsufficientBalanceError) {
+      return NextResponse.json({ error: error.message, errorCode: error.errorCode }, { status: 409 });
     }
-
-    const newBalance = account.balance - pointsUsed;
-    const reason = `Spent: ${method}${partnerName ? ` (${partnerName})` : ''}`;
-
-    // Use a prisma transaction to ensure both operations succeed or fail together
-    const [, , updatedAccount] = await prisma.$transaction([
-      // 1. Log the spending transaction
-      prisma.spendingTransaction.create({
-        data: {
-          loyaltyAccountId,
-          pointsUsed,
-          method,
-          partnerName,
-          cpp: cpp ? parseFloat(cpp) : null,
-        },
-      }),
-
-      // 2. Create a new history entry for the balance change
-      prisma.historyEntry.create({
-        data: {
-          loyaltyAccountId,
-          balance: newBalance,
-          date: new Date(),
-          reason,
-        },
-      }),
-
-      // 3. Update the main account balance
-      prisma.loyaltyAccount.update({
-        where: { id: loyaltyAccountId },
-        data: {
-          balance: newBalance,
-          date: new Date(),
-        },
-        include: {
-          history: { orderBy: { date: 'desc' } },
-          spending: { orderBy: { date: 'desc' } },
-        }
-      })
-    ]);
-
-    return NextResponse.json(updatedAccount);
-  } catch (error) {
-    console.error('Error logging spending:', error);
-    return new NextResponse('Internal Server Error', { status: 500 });
+    console.error('Error processing spending:', error);
+    return NextResponse.json({ error: error.message || 'Failed to process spending' }, { status: 500 });
   }
 } 

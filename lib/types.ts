@@ -5,6 +5,9 @@ export type { HistoryEntry, SpendingTransaction };
 export type Account = {
   id: string;
   name: string;
+  customName?: string | null;
+  accountIdNumber?: string | null;
+  notes?: string | null;
   balance: number;
   date: Date;
   category: string;
@@ -28,4 +31,6 @@ export interface NewAccountData {
   cardOpenDate?: string;
   annualFee?: number;
   signupBonus?: number;
+  accountIdNumber?: string;
+  notes?: string;
 }

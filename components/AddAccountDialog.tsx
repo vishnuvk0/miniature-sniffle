@@ -27,6 +27,8 @@ import {
   CREDIT_CARDS_BY_PROGRAM
 } from "@/lib/constants";
 import { Autocomplete } from "./Autocomplete";
+import { DatePicker } from "./ui/date-picker";
+import { MonthYearPicker } from "./ui/month-year-picker";
 
 export interface AddAccountDialogProps {
   onAccountAdd: (accountData: NewAccountData) => void;
@@ -39,15 +41,17 @@ export function AddAccountDialog({ onAccountAdd, children }: AddAccountDialogPro
   const [name, setName] = useState("");
   const [card, setCard] = useState("");
   const [balance, setBalance] = useState<string>("");
-  const [date, setDate] = useState("");
-  const [cardOpenDate, setCardOpenDate] = useState("");
+  const [date, setDate] = useState<Date | undefined>(new Date());
+  const [cardOpenDate, setCardOpenDate] = useState<Date | undefined>();
   const [annualFee, setAnnualFee] = useState("");
   const [signupBonus, setSignupBonus] = useState("");
+  const [accountIdNumber, setAccountIdNumber] = useState("");
+  const [notes, setNotes] = useState("");
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0];
-    setDate(today);
+    setDate(new Date(today));
   }, []);
 
   const handleNumericInputChange = (
@@ -93,10 +97,12 @@ export function AddAccountDialog({ onAccountAdd, children }: AddAccountDialogPro
     setName("");
     setCard("");
     setBalance("");
-    setDate(new Date().toISOString().split('T')[0]);
-    setCardOpenDate("");
+    setDate(new Date());
+    setCardOpenDate(undefined);
     setAnnualFee("");
     setSignupBonus("");
+    setAccountIdNumber("");
+    setNotes("");
   };
 
   const handleClose = () => {
@@ -107,16 +113,18 @@ export function AddAccountDialog({ onAccountAdd, children }: AddAccountDialogPro
   
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    if (!category || !name) return;
+    if (!category || !name || !date) return;
 
     const newAccount: NewAccountData = {
       category,
       name,
       balance: parsePoints(balance),
-      date,
+      date: date.toISOString(),
+      accountIdNumber,
+      notes,
       ...(category === ACCOUNT_CATEGORIES.CREDIT_CARD && {
         card,
-        cardOpenDate,
+        cardOpenDate: cardOpenDate?.toISOString(),
         annualFee: parsePoints(annualFee),
         signupBonus: parsePoints(signupBonus),
       }),
@@ -225,24 +233,25 @@ export function AddAccountDialog({ onAccountAdd, children }: AddAccountDialogPro
           />
         </div>
         <div className="grid grid-cols-4 items-center gap-4">
+          <Label htmlFor="accountId" className="text-right">Account ID</Label>
+          <Input id="accountId" value={accountIdNumber} onChange={(e) => setAccountIdNumber(e.target.value)} className="col-span-3" placeholder="Membership/Account Number" />
+        </div>
+        <div className="grid grid-cols-4 items-center gap-4">
           <Label htmlFor="date" className="text-right">As of Date</Label>
-          <Input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="col-span-3" required/>
+          <div className="col-span-3">
+            <DatePicker date={date} setDate={setDate} disableFuture />
+          </div>
         </div>
         {category === ACCOUNT_CATEGORIES.CREDIT_CARD && (
           <>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="cardOpenDate" className="text-right">Open Date</Label>
-              <Input 
-                id="cardOpenDate" 
-                type="month" 
-                value={cardOpenDate}
-                placeholder="MM/YY" 
-                onChange={(e) => setCardOpenDate(e.target.value)} 
-                className="col-span-3" 
-              />
+              <div className="col-span-3">
+                <MonthYearPicker date={cardOpenDate} setDate={setCardOpenDate} />
+              </div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="annualFee" className="text-right">Annual Fee</Label>
+              <Label htmlFor="annualFee" className="text-right">Annual Fee $</Label>
               <Input 
                 id="annualFee" 
                 type="text" 
@@ -264,6 +273,10 @@ export function AddAccountDialog({ onAccountAdd, children }: AddAccountDialogPro
                 className="col-span-3" 
                 autoComplete="off"
               />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="notes" className="text-right">Notes</Label>
+                <textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} className="col-span-3 min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Any notes, reminders, or links..." />
             </div>
           </>
         )}

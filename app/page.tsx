@@ -25,25 +25,12 @@ const DynamicMainProgressChart = dynamic(
   }
 );
 
-// Placeholder for ReasonForDecreaseDialog - we'll create and import this next
-const DynamicReasonForDecreaseDialog = dynamic(
-  () => import("@/components/ReasonForDecreaseDialog"), // Assuming this path
-  { ssr: false, loading: () => null } // No specific loading for this dialog, it's quick
-);
-
 export default function HomePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccountForDetail, setSelectedAccountForDetail] = useState<Account | null>(null);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
-  const [isReasonDialogOpen, setIsReasonDialogOpen] = useState(false);
-  const [pendingUpdateInfo, setPendingUpdateInfo] = useState<{
-    accountId: string;
-    newBalance: number;
-    newDate: string;
-    oldBalance: number; // Store old balance to confirm decrease
-  } | null>(null);
 
   useEffect(() => {
     if (status === 'loading') return; // Do nothing while loading
@@ -122,7 +109,29 @@ export default function HomePage() {
     setSelectedAccountForDetail(null);
   };
 
-  const handleUpdateAccountHistory = async (accountId: string, newBalance: number, newDate: string, reason?: string) => {
+  const handleAccountUpdate = (updatedAccount: Account) => {
+    setAccounts((prevAccounts) =>
+      prevAccounts.map((acc) => (acc.id === updatedAccount.id ? updatedAccount : acc))
+    );
+    setSelectedAccountForDetail(updatedAccount);
+  };
+
+  const handleAccountsUpdate = (updatedAccounts: Account[]) => {
+    setAccounts(prevAccounts => {
+        const accountMap = new Map(prevAccounts.map(acc => [acc.id, acc]));
+        updatedAccounts.forEach(updatedAcc => {
+            accountMap.set(updatedAcc.id, updatedAcc);
+        });
+        return Array.from(accountMap.values()).sort((a,b) => a.name.localeCompare(b.name));
+    });
+
+    const newSelectedAccount = updatedAccounts.find(acc => acc.id === selectedAccountForDetail?.id);
+    if (newSelectedAccount) {
+        setSelectedAccountForDetail(newSelectedAccount);
+    }
+  };
+
+  const handleUpdateAccountHistory = async (accountId: string, newBalance: number, newDate: string | Date) => {
     const accountToUpdate = accounts.find((acc) => acc.id === accountId);
     if (!accountToUpdate) {
       console.error("Account not found for update:", accountId);
@@ -138,10 +147,10 @@ export default function HomePage() {
 
     const referenceBalance = previousEntry ? previousEntry.balance : 0; // If no previous entry, baseline is 0
   
-    // Only show the reason dialog if it's a true chronological decrease.
-    if (newBalance < referenceBalance && !reason) {
-      setPendingUpdateInfo({ accountId, newBalance, newDate, oldBalance: referenceBalance });
-      setIsReasonDialogOpen(true);
+    // Guide user to the Spend Points form if they are logging a decrease.
+    if (newBalance < referenceBalance) {
+      const difference = referenceBalance - newBalance;
+      alert(`To log point spending, please use the "Spend Points" form. This will help track your redemptions correctly.\n\nYou can enter ${difference.toLocaleString()} in the "Points Used" field.`);
       return;
     }
   
@@ -149,7 +158,7 @@ export default function HomePage() {
       const response = await fetch(`/api/accounts/${accountId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ balance: newBalance, date: newDate, reason }),
+        body: JSON.stringify({ balance: newBalance, date: newDate }),
       });
   
       if (!response.ok) {
@@ -157,26 +166,10 @@ export default function HomePage() {
       }
   
       const updatedAccount = await response.json();
-      setAccounts((prevAccounts) =>
-        prevAccounts.map((acc) => (acc.id === accountId ? updatedAccount : acc))
-      );
-      setSelectedAccountForDetail(updatedAccount);
-      setIsReasonDialogOpen(false);
-      setPendingUpdateInfo(null);
+      handleAccountUpdate(updatedAccount);
     } catch (error) {
       console.error('Error updating account:', error);
     }
-  };
-
-  const handleConfirmUpdateWithReason = (reason: string) => {
-    if (!pendingUpdateInfo) return;
-    const { accountId, newBalance, newDate } = pendingUpdateInfo;
-    handleUpdateAccountHistory(accountId, newBalance, newDate, reason);
-  };
-
-  const handleCancelReasonDialog = () => {
-    setIsReasonDialogOpen(false);
-    setPendingUpdateInfo(null);
   };
 
   const handleDeleteHistoryEntry = async (accountId: string, historyId: string) => {
@@ -190,12 +183,53 @@ export default function HomePage() {
       }
 
       const updatedAccount = await response.json();
-      setAccounts((prevAccounts) =>
-        prevAccounts.map((acc) => (acc.id === accountId ? updatedAccount : acc))
-      );
-      setSelectedAccountForDetail(updatedAccount);
+      handleAccountUpdate(updatedAccount);
     } catch (error) {
       console.error('Error deleting history entry:', error);
+    }
+  };
+
+  const handleEditHistoryEntry = async (accountId: string, historyId: string, newBalance: number, newDate: string) => {
+    try {
+        const response = await fetch(`/api/accounts/${accountId}/history/${historyId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ balance: newBalance, date: newDate }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to update history entry');
+        }
+
+        const updatedAccount = await response.json();
+        handleAccountUpdate(updatedAccount);
+    } catch (error: any) {
+        console.error('Error updating history entry:', error);
+        alert(`Error: ${error.message}`);
+    }
+  };
+
+  const handleDeleteSpend = async (accountId: string, spendId: string) => {
+    if (!confirm('Are you sure you want to delete this spending record? This might affect balances in other accounts if it was a transfer.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/accounts/${accountId}/spend/${spendId}`, {
+            method: 'DELETE',
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to delete spending entry');
+        }
+
+        const updatedAccounts = await response.json();
+        handleAccountsUpdate(updatedAccounts);
+    } catch (error: any) {
+        console.error('Error deleting spending entry:', error);
+        alert(`Error: ${error.message}`);
     }
   };
 
@@ -313,19 +347,12 @@ export default function HomePage() {
           isOpen={isDetailDialogOpen}
           onClose={handleCloseDetailDialog}
           account={selectedAccountForDetail}
+          onAccountUpdate={handleAccountUpdate}
+          onAccountsUpdate={handleAccountsUpdate}
           onUpdateHistory={handleUpdateAccountHistory}
           onDeleteHistoryEntry={handleDeleteHistoryEntry}
-        />
-      )}
-
-      {isReasonDialogOpen && pendingUpdateInfo && (
-        <DynamicReasonForDecreaseDialog
-          isOpen={isReasonDialogOpen}
-          onClose={handleCancelReasonDialog}
-          onConfirm={handleConfirmUpdateWithReason}
-          accountName={accounts.find(acc => acc.id === pendingUpdateInfo.accountId)?.name || 'Unknown Account'}
-          oldBalance={pendingUpdateInfo.oldBalance}
-          newBalance={pendingUpdateInfo.newBalance}
+          onDeleteSpend={handleDeleteSpend}
+          onEditHistoryEntry={handleEditHistoryEntry}
         />
       )}
     </div>

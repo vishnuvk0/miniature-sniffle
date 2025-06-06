@@ -2,14 +2,15 @@
 
 import {
   ResponsiveContainer,
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   Tooltip,
   CartesianGrid,
   Legend,
 } from "recharts";
+import { useMemo } from "react";
 
 // Define the structure of data points for this chart
 interface ChartDataPoint {
@@ -23,7 +24,14 @@ interface DetailedAccountChartProps {
 }
 
 export default function DetailedAccountChart({ data }: DetailedAccountChartProps) {
-  console.log("[DetailedAccountChart] Data received:", data);
+  // Calculate min and max for gradient
+  const { minBalance, maxBalance } = useMemo(() => {
+    if (!data || data.length === 0) return { minBalance: 0, maxBalance: 0 };
+    return {
+      minBalance: Math.min(...data.map(d => d.balance)),
+      maxBalance: Math.max(...data.map(d => d.balance))
+    };
+  }, [data]);
 
   if (!data || data.length === 0) {
     return (
@@ -35,28 +43,41 @@ export default function DetailedAccountChart({ data }: DetailedAccountChartProps
 
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <LineChart
+      <AreaChart
         data={data}
         margin={{
           top: 5,
-          right: 20, // Give some space for right-most Y-axis labels if ever needed
-          left: 10,  // Give some space for left-most Y-axis labels
-          bottom: 20, // Increased bottom margin for XAxis labels
+          right: 20,
+          left: 10,
+          bottom: 20,
         }}
       >
-        <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.3} />
+        <defs>
+          <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="rgb(34, 197, 94)" stopOpacity={0.2}/>
+            <stop offset="95%" stopColor="rgb(34, 197, 94)" stopOpacity={0}/>
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} vertical={false} />
         <XAxis 
           dataKey="name" 
           angle={-30}
           textAnchor="end"
-          tick={{ fontSize: '0.75rem' }} // Smaller font for axis ticks
-          interval="preserveStartEnd" // Show start, end and some ticks in between
+          tick={{ fontSize: '0.75rem', fill: 'hsl(var(--muted-foreground))' }}
+          tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
+          axisLine={{ stroke: 'hsl(var(--muted-foreground))' }}
+          interval="preserveStartEnd"
         />
         <YAxis 
           tickFormatter={(value) => value.toLocaleString()}
-          width={70} // Adjust width as needed for balance numbers
-          tick={{ fontSize: '0.75rem' }}
-          domain={['auto', 'auto']} // Auto domain based on data
+          width={70}
+          tick={{ fontSize: '0.75rem', fill: 'hsl(var(--muted-foreground))' }}
+          tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
+          axisLine={{ stroke: 'hsl(var(--muted-foreground))' }}
+          domain={[
+            (dataMin: number) => Math.floor(dataMin * 0.95),
+            (dataMax: number) => Math.ceil(dataMax * 1.05)
+          ]}
         />
         <Tooltip
           contentStyle={{
@@ -65,27 +86,28 @@ export default function DetailedAccountChart({ data }: DetailedAccountChartProps
             borderRadius: "var(--radius)",
           }}
           labelFormatter={(label, payload) => {
-            // Use originalDate from payload if available for more precise tooltip
             if (payload && payload.length > 0 && payload[0].payload.originalDate) {
               return `Date: ${new Date(payload[0].payload.originalDate).toLocaleDateString()}`;
             }
-            return `Date: ${label}`; // Fallback to formatted name
+            return `Date: ${label}`;
           }}
           formatter={(value: number) => [value.toLocaleString(), "Balance"]}
         />
         <Legend verticalAlign="top" height={36} />
-        <Line
-          type="linear" // Kept linear for consistency in testing
+        <Area
+          type="monotone"
           dataKey="balance"
           name="Account Balance"
-          stroke="green" // Use a hardcoded, obvious color for testing
+          stroke="rgb(34, 197, 94)"
           strokeWidth={2}
-          dot={true} // Always show dots for testing
+          dot={false}
+          activeDot={{ r: 4, strokeWidth: 0 }}
           isAnimationActive={true}
           animationDuration={1000}
           animationEasing="ease-in-out"
+          fill="url(#colorBalance)"
         />
-      </LineChart>
+      </AreaChart>
     </ResponsiveContainer>
   );
 } 
