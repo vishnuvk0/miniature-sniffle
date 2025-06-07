@@ -2,8 +2,8 @@
   "regions": ["iad1"],
   "env": {
     "NEXTAUTH_URL": "https://${VERCEL_URL}",
-    "NEXTAUTH_SECRET": "@nextauth_secret",
-    "DATABASE_URL": "@database_url",
-    "DATABASE_URL_UNPOOLED": "@database_url_unpooled"
+    "NEXTAUTH_SECRET": "${NEXTAUTH_SECRET}",
+    "DATABASE_URL": "${DATABASE_URL}",
+    "DATABASE_URL_UNPOOLED": "${DATABASE_URL_UNPOOLED}"
   }
 } 
