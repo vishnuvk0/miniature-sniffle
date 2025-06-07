@@ -90,9 +90,10 @@ function CommandList({
     <CommandPrimitive.List
       data-slot="command-list"
       className={cn(
-        "max-h-[224px] scroll-py-1 overflow-x-hidden overflow-y-auto",
+        "max-h-[180px] scroll-py-1 overflow-x-hidden overflow-y-auto",
         className
       )}
+      onWheel={(event) => event.stopPropagation()}
       {...props}
     />
   )

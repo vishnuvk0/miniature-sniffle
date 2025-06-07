@@ -24,6 +24,7 @@ export type Account = {
 
 export interface NewAccountData {
   name: string;
+  customName?: string;
   balance: number;
   date: string;
   category: string;

@@ -10,17 +10,21 @@ export class InsufficientBalanceError extends Error {
 }
 
 export async function createSpendLogic(tx: any, sendingAccountId: string, userId: string, spendData: any) {
-    const { pointsUsed, method, partnerName, transferBonus, date, adjustBalance } = spendData;
+    const { pointsUsed, reason, partnerName, transferBonus, date, notes } = spendData;
     const spendDate = new Date(date);
 
-    // 1. Get sending account
+    // 1. Get sending account and its latest entry
     const sendingAccount = await tx.loyaltyAccount.findUnique({
       where: { id: sendingAccountId },
+      include: { history: { orderBy: { date: 'desc' }, take: 1 } }
     });
 
     if (!sendingAccount || sendingAccount.userId !== userId) {
       throw new Error('Account not found or access denied.');
     }
+
+    const latestEntry = sendingAccount.history[0];
+    const isRetroactive = latestEntry && spendDate < latestEntry.date;
 
     // Find balance at spend date
     const historyBeforeSpend = await tx.historyEntry.findFirst({
@@ -28,28 +32,62 @@ export async function createSpendLogic(tx: any, sendingAccountId: string, userId
       orderBy: { date: 'desc' },
     });
     let balanceAtSpend = historyBeforeSpend ? historyBeforeSpend.balance : 0;
+    let subsequentUpdateNeeded = true; 
 
-    // 2. Validate balance and handle retroactive adjustment
-    if (balanceAtSpend < pointsUsed) {
-      if (adjustBalance) {
-        const deficit = pointsUsed - balanceAtSpend;
-        await tx.historyEntry.updateMany({
-          where: { loyaltyAccountId: sendingAccountId },
-          data: { balance: { increment: deficit } },
-        });
-
-        const adjustedHistoryBeforeSpend = await tx.historyEntry.findFirst({
-          where: { loyaltyAccountId: sendingAccountId, date: { lte: spendDate } },
-          orderBy: { date: 'desc' },
-        });
-        balanceAtSpend = adjustedHistoryBeforeSpend ? adjustedHistoryBeforeSpend.balance : deficit;
-
+    // 2. Adjust balances for retroactive spending
+    if (isRetroactive) {
+      if (historyBeforeSpend) {
+          // Case: Spend is IN-BETWEEN existing entries.
+          // Increment all entries to preserve final balance, then create the debit.
+          await tx.historyEntry.updateMany({
+              where: { loyaltyAccountId: sendingAccountId },
+              data: { balance: { increment: pointsUsed } },
+          });
+          // Refetch balance at spend date, which is now higher.
+          const adjustedHistoryBeforeSpend = await tx.historyEntry.findFirst({
+              where: { loyaltyAccountId: sendingAccountId, date: { lte: spendDate } },
+              orderBy: { date: 'desc' },
+          });
+          balanceAtSpend = adjustedHistoryBeforeSpend!.balance;
       } else {
-        throw new InsufficientBalanceError(
-          `Insufficient balance at the time of spending. Balance on ${spendDate.toLocaleDateString()} was ${balanceAtSpend.toLocaleString()}.`,
-          'INSUFFICIENT_BALANCE_RETROACTIVE'
-        );
+          // Case: Spend is BEFORE ALL existing entries.
+          const nextEntry = await tx.historyEntry.findFirst({
+            where: { loyaltyAccountId: sendingAccountId, date: { gt: spendDate } },
+            orderBy: { date: 'asc' },
+          });
+
+          if (nextEntry) {
+            const inferredBalanceBeforeSpend = nextEntry.balance + pointsUsed;
+            await tx.historyEntry.create({
+              data: {
+                loyaltyAccountId: sendingAccountId,
+                balance: inferredBalanceBeforeSpend,
+                date: new Date(spendDate.getTime() - 1),
+                reason: 'Automatic Balance Adjustment',
+              },
+            });
+            balanceAtSpend = inferredBalanceBeforeSpend;
+            subsequentUpdateNeeded = false;
+          } else {
+            // This case is unlikely for a retroactive spend, but as a fallback:
+            balanceAtSpend = pointsUsed;
+             await tx.historyEntry.create({
+                data: {
+                    loyaltyAccountId: sendingAccountId,
+                    balance: pointsUsed,
+                    date: new Date(spendDate.getTime() - 1),
+                    reason: 'Automatic Balance Adjustment',
+                }
+            });
+            subsequentUpdateNeeded = false;
+          }
       }
+    } else if (balanceAtSpend < pointsUsed) {
+      // Non-retroactive spend with insufficient funds.
+      throw new InsufficientBalanceError(
+        `Insufficient balance. Current balance on ${spendDate.toLocaleDateString()} is ${balanceAtSpend.toLocaleString()}.`,
+        'INSUFFICIENT_BALANCE_CURRENT'
+      );
     }
 
     // 3. Create the spending transaction
@@ -57,9 +95,11 @@ export async function createSpendLogic(tx: any, sendingAccountId: string, userId
       data: {
         loyaltyAccountId: sendingAccountId,
         pointsUsed,
-        method,
+        type: 'SPEND',
+        reason,
         partnerName,
         transferBonus,
+        notes,
         date: spendDate,
       },
     });
@@ -70,19 +110,21 @@ export async function createSpendLogic(tx: any, sendingAccountId: string, userId
         loyaltyAccountId: sendingAccountId,
         balance: balanceAtSpend - pointsUsed,
         date: spendDate,
-        reason: `Spent: ${method} - ${partnerName || ''}`,
+        reason: `Spent: ${reason} - ${partnerName || ''}`,
         transactionId: spendingTransaction.id
       },
     });
 
     // 5. Update subsequent history
-    await tx.historyEntry.updateMany({
-      where: { loyaltyAccountId: sendingAccountId, date: { gt: spendDate } },
-      data: { balance: { decrement: pointsUsed } },
-    });
+    if(subsequentUpdateNeeded) {
+      await tx.historyEntry.updateMany({
+        where: { loyaltyAccountId: sendingAccountId, date: { gt: spendDate } },
+        data: { balance: { decrement: pointsUsed } },
+      });
+    }
     
     // 6. Handle partner transfer logic
-    if (method === 'Transfer to Partner' && partnerName) {
+    if (reason === 'Transfer to Partner' && partnerName) {
       const bonusPoints = Math.round(pointsUsed * (transferBonus / 100));
       const totalPointsToTransfer = pointsUsed + bonusPoints;
 
@@ -133,7 +175,7 @@ export async function createSpendLogic(tx: any, sendingAccountId: string, userId
 
     // 7. Update main balances of all affected accounts
     const allAffectedAccountIds = [sendingAccountId];
-    if (method === 'Transfer to Partner' && partnerName) {
+    if (reason === 'Transfer to Partner' && partnerName) {
       const partner = await tx.loyaltyAccount.findFirst({ where: { name: partnerName, userId: userId }});
       if (partner) allAffectedAccountIds.push(partner.id);
     }
@@ -178,7 +220,7 @@ export async function deleteSpendLogic(tx: any, spendId: string, userId: string)
     const affectedAccountIds: string[] = [spendingTransaction.loyaltyAccountId];
     
     // For transfers, handle the receiving account first
-    if (spendingTransaction.method === 'Transfer to Partner' && spendingTransaction.partnerName) {
+    if (spendingTransaction.reason === 'Transfer to Partner' && spendingTransaction.partnerName) {
         const partnerAccount = await tx.loyaltyAccount.findFirst({
             where: { name: spendingTransaction.partnerName, userId: userId }
         });

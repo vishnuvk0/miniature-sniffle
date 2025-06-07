@@ -132,49 +132,76 @@ export async function DELETE(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { id, historyId } = params;
+  const { id: accountId, historyId } = params;
   try {
-    // Verify the user owns the account associated with the history entry
-    const account = await prisma.loyaltyAccount.findUnique({
-      where: { id },
-      select: { userId: true },
-    });
+    const updatedData = await prisma.$transaction(async (tx) => {
+      // 1. Find the history entry to be deleted
+      const historyEntryToDelete = await tx.historyEntry.findUnique({
+        where: { id: historyId },
+        include: { account: true }
+      });
 
-    if (!account || account.userId !== session.user.id) {
-      return NextResponse.json({ error: 'Account not found or access denied' }, { status: 404 });
-    }
+      if (!historyEntryToDelete) {
+        throw new Error("History entry not found");
+      }
+      if (historyEntryToDelete.account.userId !== session.user.id) {
+        throw new Error("Access denied");
+      }
 
-    // First, delete the specific history entry
-    await prisma.historyEntry.delete({
-      where: { id: historyId },
-    });
+      const { transactionId } = historyEntryToDelete;
+      let affectedAccountIds: string[] = [historyEntryToDelete.loyaltyAccountId];
 
-    // Then, find the latest remaining history entry for the account
-    const latestHistoryEntry = await prisma.historyEntry.findFirst({
-      where: { loyaltyAccountId: id },
-      orderBy: { date: 'desc' },
-    });
+      // 2. If it's linked to a spend, delete the spend and any partner link
+      if (transactionId) {
+        const deletedSpendIds = await deleteSpendLogic(tx, transactionId, session.user.id);
+        affectedAccountIds = [...new Set([...affectedAccountIds, ...deletedSpendIds])];
+      } else {
+        // 3. If not linked to a spend, handle manual deletion logic (if any)
+        // This part would contain logic for recalculating balances if a manual entry is deleted.
+        // For now, we assume simple deletion is okay, but this is where complex recalculations would go.
+        await tx.historyEntry.delete({ where: { id: historyId } });
+      }
 
-    // Update the account's main balance and date to reflect the latest entry
-    // If no history entries are left, you might want to set a default state or handle as needed
-    const updatedAccount = await prisma.loyaltyAccount.update({
-      where: { id },
-      data: {
-        balance: latestHistoryEntry ? latestHistoryEntry.balance : 0, // Default to 0 if no history
-        date: latestHistoryEntry ? latestHistoryEntry.date : new Date(), // Default to now if no history
-      },
-      include: {
-        history: {
-          orderBy: {
-            date: 'asc',
+      // 4. Update the balances for all affected accounts
+      for (const id of affectedAccountIds) {
+        const latestHistoryEntry = await tx.historyEntry.findFirst({
+          where: { loyaltyAccountId: id },
+          orderBy: { date: 'desc' },
+        });
+
+        await tx.loyaltyAccount.update({
+          where: { id },
+          data: {
+            balance: latestHistoryEntry ? latestHistoryEntry.balance : 0,
+            date: latestHistoryEntry ? latestHistoryEntry.date : new Date(),
           },
-        },
-      },
+        });
+      }
+
+      // 5. Return updated data for all affected accounts
+      if (affectedAccountIds.length > 1) {
+        return tx.loyaltyAccount.findMany({
+          where: { id: { in: affectedAccountIds } },
+          include: {
+            history: { orderBy: { date: 'desc' } },
+            spending: { orderBy: { date: 'desc' } },
+          },
+        });
+      } else {
+        return tx.loyaltyAccount.findUnique({
+          where: { id: accountId },
+          include: {
+            history: { orderBy: { date: 'desc' } },
+            spending: { orderBy: { date: 'desc' } },
+          },
+        });
+      }
     });
 
-    return NextResponse.json(updatedAccount);
+    return NextResponse.json(updatedData);
+
   } catch (error) {
-    console.error(`Error deleting history entry ${historyId} for account ${id}:`, error);
+    console.error(`Error deleting history entry ${historyId} for account ${accountId}:`, error);
     return NextResponse.json({ error: 'Failed to delete history entry' }, { status: 500 });
   }
 } 

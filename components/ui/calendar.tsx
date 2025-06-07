@@ -5,86 +5,13 @@ import {
   ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
 } from "lucide-react"
-import { DayButton, DayPicker, getDefaultClassNames, useDayPicker, type CalendarMonth } from "react-day-picker"
-import { format, addYears } from "date-fns"
+import { DayButton, DayPicker, getDefaultClassNames, type CalendarMonth } from "react-day-picker"
 
 import { cn } from "@/lib/utils"
 import { Button, buttonVariants } from "@/components/ui/button"
 
 export type CalendarProps = React.ComponentProps<typeof DayPicker>
-
-function CalendarCaption(props: React.ComponentProps<"div"> & { displayMonth: Date }) {
-  const { goToMonth, nextMonth, previousMonth } = useDayPicker()
-
-  return (
-    <div className="flex items-center justify-center relative pt-1 mb-4">
-      <div className="flex items-center gap-1 absolute left-1">
-        <button
-          onClick={(e) => {
-            e.preventDefault()
-            previousMonth && goToMonth(addYears(props.displayMonth, -1))
-          }}
-          className={cn(
-            buttonVariants({ variant: "outline" }),
-            "h-7 w-7 bg-transparent p-0"
-          )}
-          disabled={!previousMonth}
-        >
-          <ChevronsLeft className="h-4 w-4" />
-        </button>
-        <button
-          onClick={(e) => {
-            e.preventDefault()
-            previousMonth && goToMonth(previousMonth)
-          }}
-          className={cn(
-            buttonVariants({ variant: "outline" }),
-            "h-7 w-7 bg-transparent p-0"
-          )}
-          disabled={!previousMonth}
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-      </div>
-      <div className="text-sm font-medium">
-        {format(new Date(props.displayMonth), "MMMM d, yyyy", { locale: props.locale })}
-      </div>
-      <div className="flex items-center gap-1 absolute right-1">
-        <button
-          onClick={(e) => {
-            e.preventDefault()
-            nextMonth && goToMonth(nextMonth)
-          }}
-          className={cn(
-            buttonVariants({ variant: "outline" }),
-            "h-7 w-7 bg-transparent p-0"
-          )}
-          disabled={!nextMonth}
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
-        <button
-          onClick={(e) => {
-            e.preventDefault()
-            nextMonth && goToMonth(addYears(props.displayMonth, 1))
-          }}
-          className={cn(
-            buttonVariants({ variant: "outline" }),
-            "h-7 w-7 bg-transparent p-0"
-          )}
-          disabled={!nextMonth}
-        >
-          <ChevronsRight className="h-4 w-4" />
-        </button>
-      </div>
-    </div>
-  )
-}
 
 function Calendar({
   className,
@@ -228,7 +155,6 @@ function Calendar({
             </td>
           )
         },
-        Caption: (props) => <CalendarCaption displayMonth={props.displayMonth} />,
         ...components,
       }}
       {...props}

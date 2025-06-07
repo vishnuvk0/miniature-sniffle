@@ -28,6 +28,7 @@ export function DeleteAccountDialog({ account, onDelete }: DeleteAccountDialogPr
           variant="ghost"
           size="icon"
           className="absolute top-2 right-2 text-destructive hover:text-destructive/90 hover:bg-destructive/10"
+          type="button"
         >
           <Trash2 className="h-5 w-5" />
         </Button>

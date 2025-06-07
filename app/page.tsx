@@ -182,8 +182,14 @@ export default function HomePage() {
         throw new Error('Failed to delete history entry');
       }
 
-      const updatedAccount = await response.json();
-      handleAccountUpdate(updatedAccount);
+      const data = await response.json();
+      
+      // The response can either be a single updated account or an array of them
+      if (Array.isArray(data)) {
+        handleAccountsUpdate(data);
+      } else {
+        handleAccountUpdate(data);
+      }
     } catch (error) {
       console.error('Error deleting history entry:', error);
     }

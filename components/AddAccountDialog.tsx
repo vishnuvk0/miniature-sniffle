@@ -47,6 +47,7 @@ export function AddAccountDialog({ onAccountAdd, children }: AddAccountDialogPro
   const [signupBonus, setSignupBonus] = useState("");
   const [accountIdNumber, setAccountIdNumber] = useState("");
   const [notes, setNotes] = useState("");
+  const [customName, setCustomName] = useState("");
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
@@ -103,6 +104,7 @@ export function AddAccountDialog({ onAccountAdd, children }: AddAccountDialogPro
     setSignupBonus("");
     setAccountIdNumber("");
     setNotes("");
+    setCustomName("");
   };
 
   const handleClose = () => {
@@ -118,6 +120,7 @@ export function AddAccountDialog({ onAccountAdd, children }: AddAccountDialogPro
     const newAccount: NewAccountData = {
       category,
       name,
+      customName,
       balance: parsePoints(balance),
       date: date.toISOString(),
       accountIdNumber,
@@ -211,6 +214,10 @@ export function AddAccountDialog({ onAccountAdd, children }: AddAccountDialogPro
           <Label htmlFor="accountName" className="text-right">Program</Label>
           <Input id="accountName" value={name} disabled className="col-span-3"/>
         </div>
+        <div className="grid grid-cols-4 items-center gap-4">
+          <Label htmlFor="customName" className="text-left">Custom Name</Label>
+          <Input id="customName" value={customName} onChange={(e) => setCustomName(e.target.value)} className="col-span-3" placeholder="e.g., My Everyday Card (Optional)"/>
+        </div>
         {category === ACCOUNT_CATEGORIES.CREDIT_CARD && (
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="card" className="text-right">Card</Label>
@@ -274,12 +281,12 @@ export function AddAccountDialog({ onAccountAdd, children }: AddAccountDialogPro
                 autoComplete="off"
               />
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="notes" className="text-right">Notes</Label>
-                <textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} className="col-span-3 min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Any notes, reminders, or links..." />
-            </div>
           </>
         )}
+        <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="notes" className="text-right">Notes</Label>
+            <textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} className="col-span-3 min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Any notes, reminders, or links..." />
+        </div>
       </div>
       <DialogFooter>
         <Button variant="outline" onClick={() => setStep(2)}>Back</Button>

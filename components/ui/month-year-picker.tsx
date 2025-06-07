@@ -76,6 +76,7 @@ export function MonthYearPicker({ date, setDate }: MonthYearPickerProps) {
               "w-full justify-start text-left font-normal",
               !date && "text-muted-foreground"
             )}
+            type="button"
           >
             <CalendarIcon className="mr-2 h-4 w-4" />
             {date ? format(date, "MMMM yyyy") : <span>Pick a month</span>}

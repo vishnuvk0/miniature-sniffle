@@ -49,7 +49,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { name, balance, date, category, card, cardOpenDate, annualFee, signupBonus, accountIdNumber, notes } = await req.json();
+    const { name, customName, balance, date, category, card, cardOpenDate, annualFee, signupBonus, accountIdNumber, notes } = await req.json();
 
     if (!name || typeof balance !== 'number' || !date || !category) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -87,6 +87,7 @@ export async function POST(req: Request) {
 
     const createData: Prisma.LoyaltyAccountCreateInput = {
       name,
+      customName,
       balance,
       date: currentDate,
       userId: session.user.id,

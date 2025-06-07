@@ -13,7 +13,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const { id: sendingAccountId } = params;
   const body = await req.json();
 
-  if (!body.pointsUsed || !body.method || !body.date) {
+  if (!body.pointsUsed || !body.reason || !body.date) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
   }
 

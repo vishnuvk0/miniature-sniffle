@@ -14,60 +14,57 @@ datasource db {
 // App-specific Models
 // ---------------------
 model LoyaltyAccount {
-  id        String         @id @default(cuid())
-  name      String
-  customName String?
+  id              String                @id @default(cuid())
+  name            String
+  customName      String?
+  balance         Int
+  date            DateTime
+  category        String
+  userId          String
+  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  history         HistoryEntry[]
+  spending        SpendingTransaction[]
+  card            String?
+  cardOpenDate    DateTime?
+  annualFee       Int?
+  signupBonus     Int?
   accountIdNumber String?
-  notes     String?
-  balance   Float
-  date      DateTime
-  history   HistoryEntry[]
-  spending  SpendingTransaction[] @relation("AccountSpending")
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
-
-  // New fields for categorization
-  category  String
-  card      String?
-  cardOpenDate DateTime?
-  annualFee Float?
-  signupBonus Int?
-
-  // Relation to User
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notes           String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
 
   @@index([userId])
 }
 
 model HistoryEntry {
-  id               String                @id @default(cuid())
+  id               String               @id @default(cuid())
   loyaltyAccountId String
-  account          LoyaltyAccount        @relation(fields: [loyaltyAccountId], references: [id], onDelete: Cascade)
+  account          LoyaltyAccount       @relation(fields: [loyaltyAccountId], references: [id], onDelete: Cascade)
+  balance          Int
   date             DateTime
-  balance          Float
   reason           String?
-  createdAt        DateTime              @default(now())
+  createdAt        DateTime             @default(now())
   transactionId    String?
-  transaction      SpendingTransaction?  @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  transaction      SpendingTransaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
 
   @@index([loyaltyAccountId])
   @@index([transactionId])
 }
 
 model SpendingTransaction {
-  id               String         @id @default(cuid())
+  id               String          @id @default(cuid())
   loyaltyAccountId String
-  account          LoyaltyAccount @relation("AccountSpending", fields: [loyaltyAccountId], references: [id], onDelete: Cascade)
-  date             DateTime       @default(now())
+  account          LoyaltyAccount  @relation(fields: [loyaltyAccountId], references: [id], onDelete: Cascade)
   pointsUsed       Int
-  method           String // e.g., "Transfer to Partner", "Spent on Portal", "Cash Out"
+  type             TransactionType @default(SPEND)
+  reason           String
   partnerName      String?
-  cpp              Float? // Cents Per Point
   transferBonus    Int?
+  notes            String?
+  date             DateTime
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
   historyEntries   HistoryEntry[]
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
 
   @@index([loyaltyAccountId])
 }
@@ -76,16 +73,14 @@ model SpendingTransaction {
 // NextAuth.js Models
 // ---------------------
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  accounts      Account[]
-  sessions      Session[]
-  
-  // Relation to our app's Account model
+  id              String           @id @default(cuid())
+  name            String?
+  email           String?          @unique
+  emailVerified   DateTime?
+  image           String?
+  password        String?
+  accounts        Account[]
+  sessions        Session[]
   loyaltyAccounts LoyaltyAccount[]
 }
 
@@ -103,8 +98,7 @@ model Account {
   scope             String?
   id_token          String? @db.Text
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -122,5 +116,10 @@ model VerificationToken {
   token      String   @unique
   expires    DateTime
 
-  @@unique([identifier, token])
+  @@id([identifier, token])
+}
+
+enum TransactionType {
+  SPEND
+  EARN
 }

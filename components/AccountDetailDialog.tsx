@@ -25,6 +25,7 @@ import { EditHistoryEntryDialog } from "./EditHistoryEntryDialog";
 import { DatePicker } from "./ui/date-picker";
 import DetailedAccountChart from "./charts/DetailedAccountChart";
 import { EditSpendTransactionDialog } from "./EditSpendTransactionDialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const DynamicMiniLineChart = dynamic(
   () => import("./charts/MiniLineChart"),
@@ -69,8 +70,16 @@ export function AccountDetailDialog({
   const [transferBonus, setTransferBonus] = useState("0");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [spendDate, setSpendDate] = useState<Date | undefined>(new Date());
+  const [spendNotes, setSpendNotes] = useState("");
   const [historyEntryToEdit, setHistoryEntryToEdit] = useState<HistoryEntry | null>(null);
   const [spendEntryToEdit, setSpendEntryToEdit] = useState<SpendingTransaction | null>(null);
+
+  // State for Earn Points form
+  const [earnDate, setEarnDate] = useState<Date | undefined>(new Date());
+  const [pointsEarned, setPointsEarned] = useState("");
+  const [earnReason, setEarnReason] = useState("");
+  const [customEarnReason, setCustomEarnReason] = useState("");
+  const [earnNotes, setEarnNotes] = useState("");
 
   useEffect(() => {
     if (account && isOpen) {
@@ -87,6 +96,24 @@ export function AccountDetailDialog({
       setCustomName(account?.customName || "");
       setAccountIdNumber(account?.accountIdNumber || "");
       setNotes(account?.notes || "");
+
+      // Reset earn form state
+      setEarnDate(new Date());
+      setPointsEarned("");
+      setEarnReason("");
+      setCustomEarnReason("");
+      setEarnNotes("");
+
+      // Set initial spend method based on account category
+      if (account.category === ACCOUNT_CATEGORIES.AIRLINE) {
+        setSpendMethod("Redeemed for Flight");
+      } else if (account.category === ACCOUNT_CATEGORIES.HOTEL) {
+        setSpendMethod("Redeemed for Hotel");
+      } else if (account.category === ACCOUNT_CATEGORIES.CREDIT_CARD) {
+        setSpendMethod("Transfer to Partner");
+      } else {
+        setSpendMethod(undefined);
+      }
     }
   }, [account, isOpen]);
 
@@ -273,54 +300,96 @@ export function AccountDetailDialog({
   const handleSpendSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!account) return;
+
+    if (!pointsUsed || !spendMethod || !spendDate) {
+      alert("Please ensure Points, Method, and Date are all filled out.");
+      return;
+    }
     
     setIsSubmitting(true);
 
-    const doSubmit = async (adjustBalance = false) => {
-      try {
-        const response = await fetch(`/api/accounts/${account.id}/spend`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            pointsUsed: parsePoints(pointsUsed),
-            method: spendMethod,
-            partnerName: spendMethod === 'Transfer to Partner' ? partnerName : undefined,
-            transferBonus: spendMethod === 'Transfer to Partner' ? parseInt(transferBonus, 10) : 0,
-            date: spendDate?.toISOString(),
-            adjustBalance, // Pass the flag
-          }),
-        });
+    try {
+      const response = await fetch(`/api/accounts/${account.id}/spend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pointsUsed: parsePoints(pointsUsed),
+          reason: spendMethod,
+          partnerName: spendMethod === 'Transfer to Partner' ? partnerName : undefined,
+          transferBonus: spendMethod === 'Transfer to Partner' ? parseInt(transferBonus, 10) : 0,
+          date: spendDate?.toISOString(),
+          notes: spendNotes,
+        }),
+      });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          if (response.status === 409 && errorData.errorCode === 'INSUFFICIENT_BALANCE_RETROACTIVE') {
-            if (window.confirm(`${errorData.error}\n\nWould you like to proceed by creating an automatic balance adjustment? Your account's final balance will be preserved.`)) {
-              await doSubmit(true); // Retry with adjustment enabled
-            } else {
-              setIsSubmitting(false); // User cancelled
-            }
-          } else {
-            throw new Error(errorData.error || 'Failed to log spending');
-          }
-        } else {
-          const updatedAccounts = await response.json();
-          onAccountsUpdate(updatedAccounts);
-          
-          // Reset form on success
-          setPointsUsed("");
-          setSpendMethod(undefined);
-          setPartnerName("");
-          setTransferBonus("0");
-          setIsSubmitting(false);
-        }
-      } catch (error: any) {
-        console.error(error);
-        alert(error.message || "Failed to log spending. Please try again.");
-        setIsSubmitting(false);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to log spending');
       }
-    };
+      
+      const updatedAccounts = await response.json();
+      onAccountsUpdate(updatedAccounts);
+      
+      // Reset form on success
+      setPointsUsed("");
+      setSpendMethod(undefined);
+      setPartnerName("");
+      setTransferBonus("0");
+      setSpendDate(new Date());
+      setSpendNotes("");
+    } catch (error: any) {
+      console.error(error);
+      alert(error.message || "Failed to log spending. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
-    await doSubmit(false); // Initial attempt without adjustment
+  const handleEarnSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!account) return;
+
+    const finalReason = earnReason === 'Other' ? customEarnReason : earnReason;
+    if (!pointsEarned || !finalReason || !earnDate) {
+      alert("Please ensure Points, Reason, and Date are all filled out.");
+      return;
+    }
+    
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(`/api/accounts/${account.id}/earn`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pointsEarned: parsePoints(pointsEarned),
+          reason: finalReason,
+          notes: earnNotes,
+          date: earnDate?.toISOString(),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to log earning');
+      }
+      
+      const updatedAccount = await response.json();
+      onAccountUpdate(updatedAccount);
+      
+      // Reset form on success
+      setPointsEarned("");
+      setEarnReason("");
+      setCustomEarnReason("");
+      setEarnNotes("");
+      setEarnDate(new Date());
+
+    } catch (error: any) {
+      console.error(error);
+      alert(error.message || "Failed to log earning. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const transferBonusOptions = [0, 10, 15, 20, 25, 30, 40, 50, 75, 100, 150, 200, 250];
@@ -335,6 +404,165 @@ export function AccountDetailDialog({
           </DialogDescription>
         </DialogHeader>
         
+        <Tabs defaultValue="spend" className="mt-4">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="spend">Spend Points</TabsTrigger>
+            <TabsTrigger value="earn">Earn Points</TabsTrigger>
+          </TabsList>
+          <TabsContent value="spend">
+            <div className="border-t pt-6 mt-6">
+              <form id="spend-points-form" onSubmit={handleSpendSubmit}>
+                <h3 className="text-lg font-medium mb-4">Spend Points</h3>
+                <div className="grid gap-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="spendDate" className="text-right">Date</Label>
+                    <div className="col-span-3">
+                      <DatePicker date={spendDate} setDate={setSpendDate} disableFuture />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="pointsUsed" className="text-right">Points Used</Label>
+                    <Input
+                      id="pointsUsed"
+                      type="text"
+                      value={pointsUsed}
+                      onChange={(e) => handleNumericInputChange(e.target.value, setPointsUsed)}
+                      onBlur={(e) => handleBlur(e.target.value, setPointsUsed)}
+                      className="col-span-1"
+                      placeholder="80,000 or 80k"
+                      required
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="spendMethod" className="text-right">Method</Label>
+                    <Select onValueChange={setSpendMethod} value={spendMethod}>
+                      <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Select a method..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {spendMethodOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {spendMethod === 'Transfer to Partner' && (
+                    <>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="partnerName" className="text-right">Partner</Label>
+                        <div className="col-span-3">
+                          <Autocomplete value={partnerName} setValue={setPartnerName} options={allPartners} />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="transferBonus" className="text-right">Bonus</Label>
+                        <Select onValueChange={setTransferBonus} value={String(transferBonus)}>
+                          <SelectTrigger className="col-span-3">
+                            <SelectValue placeholder="Select a transfer bonus..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {transferBonusOptions.map(bonus => (
+                              <SelectItem key={bonus} value={String(bonus)}>{bonus}%</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
+                  )}
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="spendNotes" className="text-right">Notes</Label>
+                    <textarea
+                      id="spendNotes"
+                      value={spendNotes}
+                      onChange={(e) => setSpendNotes(e.target.value)}
+                      className="col-span-3 min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="Optional: add any notes about this transaction"
+                    />
+                  </div>
+                </div>
+                <DialogFooter className="mt-4">
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? 'Logging...' : 'Log Spending'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </div>
+          </TabsContent>
+          <TabsContent value="earn">
+            <div className="border-t pt-6 mt-6">
+               <h3 className="text-lg font-medium mb-4">Earn Points</h3>
+                <form id="earn-points-form" className="space-y-4" onSubmit={handleEarnSubmit}>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="earnDate" className="text-right">Date</Label>
+                    <div className="col-span-3">
+                      <DatePicker date={earnDate} setDate={setEarnDate} disableFuture />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="pointsEarned" className="text-right">Points Earned</Label>
+                    <Input
+                      id="pointsEarned"
+                      type="text"
+                      value={pointsEarned}
+                      onChange={(e) => handleNumericInputChange(e.target.value, setPointsEarned)}
+                      onBlur={(e) => handleBlur(e.target.value, setPointsEarned)}
+                      className="col-span-3"
+                      placeholder="e.g., 5,000 or 5k"
+                      required
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="earnReason" className="text-right">Reason</Label>
+                    <Select onValueChange={setEarnReason} value={earnReason}>
+                      <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Select a reason..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Credit card sign up bonus">Credit card sign up bonus</SelectItem>
+                        <SelectItem value="Credit card spending">Credit card spending</SelectItem>
+                        <SelectItem value="Flight">Flight</SelectItem>
+                        <SelectItem value="Hotel stay">Hotel stay</SelectItem>
+                        <SelectItem value="Rental car">Rental car</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {earnReason === 'Other' && (
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="customEarnReason" className="text-right">Details</Label>
+                      <Input
+                        id="customEarnReason"
+                        value={customEarnReason}
+                        onChange={(e) => setCustomEarnReason(e.target.value)}
+                        className="col-span-3"
+                        placeholder="Please specify"
+                        required
+                      />
+                    </div>
+                  )}
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="earnNotes" className="text-right">Notes</Label>
+                    <textarea
+                      id="earnNotes"
+                      value={earnNotes}
+                      onChange={(e) => setEarnNotes(e.target.value)}
+                      className="col-span-3 min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="Optional: add any notes about this transaction"
+                    />
+                  </div>
+                  <DialogFooter>
+                    <Button type="submit" disabled={isSubmitting}>
+                      {isSubmitting ? 'Logging...' : 'Log Earning'}
+                    </Button>
+                  </DialogFooter>
+                </form>
+            </div>
+         </TabsContent>
+        </Tabs>
+        
         <div className="my-4 h-72">
           <DetailedAccountChart data={chartData} />
         </div>
@@ -344,7 +572,7 @@ export function AccountDetailDialog({
           <h3 className="text-lg font-medium mb-4">Edit Account Info</h3>
           <div className="grid gap-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="customName" className="text-right">Custom Name</Label>
+              <Label htmlFor="customName" className="text-left">Custom Name</Label>
               <Input id="customName" value={customName} onChange={(e) => setCustomName(e.target.value)} className="col-span-3" placeholder="e.g., My Personal Amex" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
@@ -400,113 +628,46 @@ export function AccountDetailDialog({
           </DialogFooter>
         </form>
 
-        <form id="spend-points-form" onSubmit={handleSpendSubmit}>
-          <h3 className="text-lg font-medium mb-4">Spend Points</h3>
-          <div className="grid gap-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="spendDate" className="text-right">Date</Label>
-              <div className="col-span-3">
-                <DatePicker date={spendDate} setDate={setSpendDate} disableFuture />
-              </div>
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="pointsUsed" className="text-right">Points Used</Label>
-              <Input 
-                id="pointsUsed" 
-                type="text" 
-                value={pointsUsed} 
-                onChange={(e) => handleNumericInputChange(e.target.value, setPointsUsed)} 
-                onBlur={(e) => handleBlur(e.target.value, setPointsUsed)}
-                className="col-span-1" 
-                placeholder="80,000 or 80k"
-                required 
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="spendMethod" className="text-right">Method</Label>
-              <Select onValueChange={setSpendMethod} value={spendMethod}>
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Select a method..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {spendMethodOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {spendMethod === 'Transfer to Partner' && (
-              <>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="partnerName" className="text-right">Partner</Label>
-                  <div className="col-span-3">
-                    <Autocomplete value={partnerName} setValue={setPartnerName} options={allPartners} formId="spend-points-form" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="transferBonus" className="text-right">Bonus</Label>
-                  <Select onValueChange={setTransferBonus} value={String(transferBonus)}>
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Select a transfer bonus..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {transferBonusOptions.map(bonus => (
-                        <SelectItem key={bonus} value={String(bonus)}>{bonus}%</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
-            )}
-          </div>
-          <DialogFooter className="mt-4">
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Logging...' : 'Log Spending'}
-            </Button>
-          </DialogFooter>
-        </form>
-
         {account.spending && account.spending.length > 0 && (
             <div className="mt-6">
-                <h3 className="text-lg font-medium mb-2">Points Spending</h3>
+                <h3 className="text-lg font-medium mb-2">Recent Transactions</h3>
                 <div className="max-h-48 overflow-y-auto border rounded-md">
                     <table className="w-full text-sm">
                         <thead className="sticky top-0 bg-muted">
                             <tr>
                                 <th className="p-2 text-left font-semibold">Date</th>
-                                <th className="p-2 text-right font-semibold">Points</th>
-                                <th className="p-2 text-left font-semibold">Method</th>
-                                <th className="p-2 text-left font-semibold">Partner</th>
-                                <th className="p-2 text-right font-semibold">Bonus</th>
+                                <th className="p-2 text-right font-semibold">Amount</th>
+                                <th className="p-2 text-left font-semibold">Reason</th>
+                                <th className="p-2 text-left font-semibold">Notes</th>
                                 <th className="p-2 text-center font-semibold">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {account.spending.map((spend) => (
-                                <tr key={spend.id} className="border-b last:border-b-0">
-                                    <td className="p-2">{new Date(spend.date).toLocaleDateString()}</td>
-                                    <td className="p-2 text-right">{spend.pointsUsed.toLocaleString()}</td>
-                                    <td className="p-2 text-left">{spend.method}</td>
-                                    <td className="p-2 text-left">{spend.partnerName || 'N/A'}</td>
-                                    <td className="p-2 text-right">{spend.transferBonus ? `${spend.transferBonus}%` : 'N/A'}</td>
+                            {account.spending.map((tx) => (
+                                <tr key={tx.id} className="border-b last:border-b-0">
+                                    <td className="p-2">{new Date(tx.date).toLocaleDateString()}</td>
+                                    <td className={`p-2 text-right font-medium ${tx.type === 'EARN' ? 'text-green-600' : 'text-red-600'}`}>
+                                        {tx.type === 'EARN' ? '+' : '-'}{tx.pointsUsed.toLocaleString()}
+                                    </td>
+                                    <td className="p-2 text-left">{tx.reason}</td>
+                                    <td className="p-2 text-left">{tx.notes || 'N/A'}</td>
                                     <td className="p-2 text-center">
                                       <Button
                                         variant="ghost"
                                         size="sm"
-                                        aria-label="Edit spend entry"
-                                        onClick={() => setSpendEntryToEdit(spend)}
+                                        aria-label="Edit transaction"
+                                        onClick={() => setSpendEntryToEdit(tx)}
+                                        type="button"
                                       >
                                         <Pencil className="h-4 w-4" />
                                       </Button>
                                       <Button
                                         variant="ghost"
                                         size="sm"
-                                        onClick={() => onDeleteSpend(account.id, spend.id)}
-                                        aria-label="Delete spend entry"
+                                        onClick={() => onDeleteSpend(account.id, tx.id)}
+                                        aria-label="Delete transaction"
                                         className="text-red-500 hover:text-red-700"
+                                        type="button"
                                       >
                                         <Trash2 className="h-4 w-4" />
                                       </Button>
@@ -551,6 +712,7 @@ export function AccountDetailDialog({
                                                 size="sm"
                                                 aria-label="Edit history entry"
                                                 onClick={() => setHistoryEntryToEdit(entry)}
+                                                type="button"
                                             >
                                                 <Pencil className="h-4 w-4" />
                                             </Button>
@@ -560,6 +722,7 @@ export function AccountDetailDialog({
                                                 onClick={() => onDeleteHistoryEntry(account.id, entry.id)}
                                                 aria-label="Delete history entry"
                                                 className="text-red-500 hover:text-red-700"
+                                                type="button"
                                             >
                                                 <Trash2 className="h-4 w-4" />
                                             </Button>
